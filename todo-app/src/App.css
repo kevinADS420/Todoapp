@@ -320,3 +320,30 @@ body {
     width: 100%;
   }
 }
+
+/* Add this to your App.css file */
+.task-edit-input {
+  flex: 1;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--primary-light);
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 1rem;
+  background-color: white;
+  color: var(--text-dark);
+  outline: none;
+  transition: var(--transition);
+}
+
+.task-edit-input:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 2px var(--primary-light);
+}
+
+/* Add a hover effect to indicate task is editable */
+.task-text:not(.completed):hover {
+  cursor: pointer;
+  background-color: rgba(147, 197, 253, 0.1);
+  border-radius: var(--radius-sm);
+  padding: 0 0.25rem;
+}

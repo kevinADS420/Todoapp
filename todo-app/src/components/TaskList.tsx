@@ -8,6 +8,7 @@ interface TaskListProps {
   emptyMessage: string;
   onToggleStatus: (id: number, currentStatus: boolean) => void;
   onDelete: (id: number) => void;
+  onUpdateTask: (id: number, newDescription: string) => void;
 }
 
 const TaskList: React.FC<TaskListProps> = ({ 
@@ -15,7 +16,8 @@ const TaskList: React.FC<TaskListProps> = ({
   tasks, 
   emptyMessage, 
   onToggleStatus, 
-  onDelete 
+  onDelete,
+  onUpdateTask
 }) => {
   return (
     <div className="task-section">
@@ -33,6 +35,7 @@ const TaskList: React.FC<TaskListProps> = ({
               task={task}
               onToggleStatus={onToggleStatus}
               onDelete={onDelete}
+              onUpdateTask={onUpdateTask}
             />
           ))}
         </ul>

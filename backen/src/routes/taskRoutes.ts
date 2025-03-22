@@ -1,21 +1,16 @@
-import { Request, Response, NextFunction } from 'express';
+import express from 'express';
+import { Request, Response } from 'express';
+import { getAllTasks, createTask, updateTask, deleteTask } from '../controllers/taskController';
 
-// Define un tipo para el controlador de Express
-type ExpressHandler = (
-  req: Request,
-  res: Response,
-  next: NextFunction
-) => Promise<void> | void;
+// Define a type for controller handlers to avoid TypeScript errors
+type ControllerFunction = (req: Request, res: Response) => Promise<any>;
 
-// Usa este tipo en tus controladores
-export const updateTask: ExpressHandler = async (req, res) => {
-  try {
-    // Tu código...
-    res.json({ message: 'Task updated successfully' });
-  } catch (error) {
-    console.error('Error updating task:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-};
+const router = express.Router();
 
-export default updateTask;
+// Use the controller functions directly, with the type assertion if needed
+router.get('/', getAllTasks as ControllerFunction);
+router.post('/', createTask as ControllerFunction);
+router.put('/:id', updateTask as ControllerFunction);
+router.delete('/:id', deleteTask as ControllerFunction);
+
+export default router;

@@ -40,26 +40,6 @@ export const createTask = async (req: Request, res: Response) => {
   }
 };
 
-export const updateTask = async (req: Request, res: Response) => {
-  try {
-    const { id } = req.params;
-    const { is_completed } = req.body;
-    
-    if (is_completed === undefined) {
-      return res.status(400).json({ message: 'is_completed field is required' });
-    }
-    
-    await pool.query(
-      'UPDATE tasks SET is_completed = ? WHERE id = ?',
-      [is_completed, id]
-    );
-    
-    res.json({ message: 'Task updated successfully' });
-  } catch (error) {
-    console.error('Error updating task:', error);
-    res.status(500).json({ message: 'Server error' });
-  }
-};
 
 export const deleteTask = async (req: Request, res: Response) => {
   try {
@@ -70,6 +50,46 @@ export const deleteTask = async (req: Request, res: Response) => {
     res.json({ message: 'Task deleted successfully' });
   } catch (error) {
     console.error('Error deleting task:', error);
+    res.status(500).json({ message: 'Server error' });
+  }
+};
+
+export const updateTask = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { is_completed, description } = req.body;
+    
+    // Build the SQL query based on what fields are provided
+    let updateQuery = 'UPDATE tasks SET ';
+    const updateValues = [];
+    
+    if (is_completed !== undefined) {
+      updateQuery += 'is_completed = ?';
+      updateValues.push(is_completed);
+    }
+    
+    if (description !== undefined) {
+      if (updateValues.length > 0) {
+        updateQuery += ', ';
+      }
+      updateQuery += 'description = ?';
+      updateValues.push(description);
+    }
+    
+    // If neither field was provided, return an error
+    if (updateValues.length === 0) {
+      return res.status(400).json({ message: 'No fields to update provided' });
+    }
+    
+    // Complete the query
+    updateQuery += ' WHERE id = ?';
+    updateValues.push(id);
+    
+    await pool.query(updateQuery, updateValues);
+    
+    res.json({ message: 'Task updated successfully' });
+  } catch (error) {
+    console.error('Error updating task:', error);
     res.status(500).json({ message: 'Server error' });
   }
 };

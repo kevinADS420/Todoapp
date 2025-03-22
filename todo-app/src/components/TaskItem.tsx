@@ -1,13 +1,56 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Task } from '../types/Task';
 
 interface TaskItemProps {
   task: Task;
   onToggleStatus: (id: number, currentStatus: boolean) => void;
   onDelete: (id: number) => void;
+  onUpdateTask: (id: number, newDescription: string) => void;
 }
 
-const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleStatus, onDelete }) => {
+const TaskItem: React.FC<TaskItemProps> = ({ 
+  task, 
+  onToggleStatus, 
+  onDelete,
+  onUpdateTask
+}) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(task.description);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Focus the input when entering edit mode
+  useEffect(() => {
+    if (isEditing && inputRef.current) {
+      inputRef.current.focus();
+    }
+  }, [isEditing]);
+
+  // Handle double click to enter edit mode
+  const handleDoubleClick = () => {
+    if (!task.is_completed) { // Only allow editing for non-completed tasks
+      setIsEditing(true);
+    }
+  };
+
+  // Handle saving the edited task
+  const handleSave = () => {
+    if (editValue.trim() !== '') {
+      onUpdateTask(task.id!, editValue.trim());
+      setIsEditing(false);
+    }
+  };
+
+  // Handle keydown events in the edit input
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSave();
+    } else if (e.key === 'Escape') {
+      // Cancel editing and revert to original value
+      setEditValue(task.description);
+      setIsEditing(false);
+    }
+  };
+
   return (
     <li className="task-item">
       <div className="task-checkbox">
@@ -19,9 +62,27 @@ const TaskItem: React.FC<TaskItemProps> = ({ task, onToggleStatus, onDelete }) =
         />
         <label htmlFor={`task-${task.id}`}></label>
       </div>
-      <span className={`task-text ${task.is_completed ? 'completed' : ''}`}>
-        {task.description}
-      </span>
+      
+      {isEditing ? (
+        <input
+          ref={inputRef}
+          className="task-edit-input"
+          type="text"
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onBlur={handleSave}
+          onKeyDown={handleKeyDown}
+        />
+      ) : (
+        <span 
+          className={`task-text ${task.is_completed ? 'completed' : ''}`}
+          onDoubleClick={handleDoubleClick}
+          title="Double-click to edit"
+        >
+          {task.description}
+        </span>
+      )}
+      
       <button 
         className="delete-button"
         onClick={() => onDelete(task.id!)}

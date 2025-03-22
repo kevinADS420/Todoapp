@@ -1,16 +1,25 @@
-// src/services/api.ts - versión completamente revisada
+// src/services/api.ts - improved version
 import axios from 'axios';
 import { Task } from '../types/Task';
 
 const API_URL = 'http://localhost:3000/api/tasks';
 
-// Configurar interceptores para debugging
-axios.interceptors.request.use(request => {
+// Create axios instance with default config
+const api = axios.create({
+  baseURL: API_URL,
+  timeout: 10000,
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
+// Add request/response logging for debugging
+api.interceptors.request.use(request => {
   console.log('Request:', request);
   return request;
 });
 
-axios.interceptors.response.use(
+api.interceptors.response.use(
   response => {
     console.log('Response:', response);
     return response;
@@ -21,59 +30,84 @@ axios.interceptors.response.use(
   }
 );
 
-// Función para forzar una recarga de las tareas
-export const forceTaskRefresh = async (): Promise<Task[]> => {
+// Get all tasks
+export const getAllTasks = async (): Promise<Task[]> => {
   try {
-    const response = await axios.get(API_URL);
-    console.log('Force refresh response:', response.data);
+    const response = await api.get('/');
+    console.log('Tasks data received:', response.data);
     
-    // Asegurarse de que devolvemos un array incluso si la API no lo hace
     if (!Array.isArray(response.data)) {
-      console.warn('API did not return an array, using empty array instead');
+      console.warn('API did not return an array', response.data);
       return [];
     }
     
     return response.data;
   } catch (error) {
-    console.error('Error in forceTaskRefresh:', error);
-    return [];
+    console.error('Error fetching tasks:', error);
+    throw error; // Let the component handle the error
   }
 };
 
-// Obtener todas las tareas
-export const getAllTasks = async (): Promise<Task[]> => {
-  return forceTaskRefresh();
+// Force refresh tasks (with more explicit error handling)
+export const forceTaskRefresh = async (): Promise<Task[]> => {
+  try {
+    const response = await api.get('/');
+    
+    if (!Array.isArray(response.data)) {
+      console.warn('API did not return an array during refresh', response.data);
+      return [];
+    }
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error refreshing tasks:', error);
+    return []; // Return empty array on error
+  }
 };
 
-// Crear una nueva tarea
-export const createTask = async (description: string): Promise<boolean> => {
+// Create a new task
+export const createTask = async (description: string): Promise<Task | null> => {
   try {
-    await axios.post(API_URL, { description });
-    return true; // Indicar éxito
+    const response = await api.post('/', { description });
+    console.log('Task created:', response.data);
+    return response.data;
   } catch (error) {
     console.error('Error creating task:', error);
-    return false; // Indicar fallo
+    return null;
   }
 };
 
-// Actualizar estado de una tarea
+// Update task status
 export const updateTaskStatus = async (id: number, is_completed: boolean): Promise<boolean> => {
   try {
-    await axios.put(`${API_URL}/${id}`, { is_completed });
-    return true; // Indicar éxito
+    const response = await api.put(`/${id}`, { is_completed });
+    console.log('Task updated:', response.data);
+    return true;
   } catch (error) {
     console.error('Error updating task:', error);
-    return false; // Indicar fallo
+    return false;
   }
 };
 
-// Eliminar una tarea
+// Delete task
 export const deleteTask = async (id: number): Promise<boolean> => {
   try {
-    await axios.delete(`${API_URL}/${id}`);
-    return true; // Indicar éxito
+    await api.delete(`/${id}`);
+    console.log('Task deleted, id:', id);
+    return true;
   } catch (error) {
     console.error('Error deleting task:', error);
-    return false; // Indicar fallo
+    return false;
+  }
+};
+
+export const updateTaskDescription = async (id: number, description: string): Promise<boolean> => {
+  try {
+    await api.put(`/${id}`, { description });
+    console.log('Task description updated:', id, description);
+    return true;
+  } catch (error) {
+    console.error('Error updating task description:', error);
+    return false;
   }
 };

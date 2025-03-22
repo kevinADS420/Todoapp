@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.deleteTask = exports.updateTask = exports.createTask = exports.getAllTasks = void 0;
+exports.updateTask = exports.deleteTask = exports.createTask = exports.getAllTasks = void 0;
 const config_db_1 = __importDefault(require("../../config/config-db"));
 const getAllTasks = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
@@ -47,22 +47,6 @@ const createTask = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
     }
 });
 exports.createTask = createTask;
-const updateTask = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
-    try {
-        const { id } = req.params;
-        const { is_completed } = req.body;
-        if (is_completed === undefined) {
-            return res.status(400).json({ message: 'is_completed field is required' });
-        }
-        yield config_db_1.default.query('UPDATE tasks SET is_completed = ? WHERE id = ?', [is_completed, id]);
-        res.json({ message: 'Task updated successfully' });
-    }
-    catch (error) {
-        console.error('Error updating task:', error);
-        res.status(500).json({ message: 'Server error' });
-    }
-});
-exports.updateTask = updateTask;
 const deleteTask = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const { id } = req.params;
@@ -75,3 +59,37 @@ const deleteTask = (req, res) => __awaiter(void 0, void 0, void 0, function* () 
     }
 });
 exports.deleteTask = deleteTask;
+const updateTask = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    try {
+        const { id } = req.params;
+        const { is_completed, description } = req.body;
+        // Build the SQL query based on what fields are provided
+        let updateQuery = 'UPDATE tasks SET ';
+        const updateValues = [];
+        if (is_completed !== undefined) {
+            updateQuery += 'is_completed = ?';
+            updateValues.push(is_completed);
+        }
+        if (description !== undefined) {
+            if (updateValues.length > 0) {
+                updateQuery += ', ';
+            }
+            updateQuery += 'description = ?';
+            updateValues.push(description);
+        }
+        // If neither field was provided, return an error
+        if (updateValues.length === 0) {
+            return res.status(400).json({ message: 'No fields to update provided' });
+        }
+        // Complete the query
+        updateQuery += ' WHERE id = ?';
+        updateValues.push(id);
+        yield config_db_1.default.query(updateQuery, updateValues);
+        res.json({ message: 'Task updated successfully' });
+    }
+    catch (error) {
+        console.error('Error updating task:', error);
+        res.status(500).json({ message: 'Server error' });
+    }
+});
+exports.updateTask = updateTask;

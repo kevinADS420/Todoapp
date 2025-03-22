@@ -1,10 +1,16 @@
-// App.tsx - versión revisada
-import React, { useState, useEffect } from 'react';
+// App.tsx - with task description update functionality
+import React, { useState, useEffect, useCallback } from 'react';
 import Header from './components/Header';
 import TaskForm from './components/TaskForm';
 import TaskList from './components/TaskList';
 import { Task } from './types/Task';
-import { getAllTasks, createTask, updateTaskStatus, deleteTask, forceTaskRefresh } from './services/api';
+import { 
+  getAllTasks, 
+  createTask, 
+  updateTaskStatus, 
+  deleteTask,
+  updateTaskDescription // Import the new function
+} from './services/api';
 import './App.css';
 
 function App() {
@@ -12,24 +18,19 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Cargar tareas al iniciar
-  useEffect(() => {
-    fetchTasks();
-  }, []);
-
-  // Función para obtener todas las tareas
-  const fetchTasks = async () => {
+  // Fetch tasks function
+  const fetchTasks = useCallback(async () => {
     setLoading(true);
     try {
       const fetchedTasks = await getAllTasks();
-      console.log('Tasks fetched successfully:', fetchedTasks);
-      setTasks(Array.isArray(fetchedTasks) ? fetchedTasks : []);
+      console.log('Tasks fetched:', fetchedTasks);
+      setTasks(fetchedTasks);
       setError(null);
     } catch (err) {
       console.error('Error fetching tasks:', err);
       setError('Failed to load tasks. Please check if the backend server is running.');
       
-      // Intentar cargar desde localStorage como respaldo
+      // Try to load from localStorage as a backup
       const savedTasks = localStorage.getItem('tasks');
       if (savedTasks) {
         try {
@@ -37,104 +38,153 @@ function App() {
           setTasks(Array.isArray(parsedTasks) ? parsedTasks : []);
         } catch (e) {
           console.error('Error parsing tasks from localStorage', e);
-          setTasks([]);
         }
-      } else {
-        setTasks([]);
       }
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  // Guardar tareas en localStorage como respaldo
+  // Load tasks on initial render
   useEffect(() => {
-    if (!loading) {
+    fetchTasks();
+  }, [fetchTasks]);
+
+  // Save tasks to localStorage when they change
+  useEffect(() => {
+    if (!loading && tasks.length > 0) {
       localStorage.setItem('tasks', JSON.stringify(tasks));
     }
   }, [tasks, loading]);
 
-  // Agregar una nueva tarea
+  // Add a new task
   const handleAddTask = async (description: string) => {
     setLoading(true);
     try {
-      const success = await createTask(description);
-      if (success) {
-        // Recargar todas las tareas después de agregar
-        await new Promise(resolve => setTimeout(resolve, 300)); // Pequeña pausa
-        const updatedTasks = await forceTaskRefresh();
-        setTasks(updatedTasks);
+      const newTask = await createTask(description);
+      if (newTask) {
+        // Add the new task to the state
+        setTasks(prevTasks => [...prevTasks, newTask]);
         setError(null);
       } else {
+        // If the API call was successful but didn't return a task
         setError('Failed to add task. Please try again.');
+        // Refresh all tasks to ensure synchronization
+        fetchTasks();
       }
     } catch (err) {
       console.error('Error adding task:', err);
       setError('Failed to add task. Please try again.');
-      throw err;
     } finally {
       setLoading(false);
     }
   };
 
-  // Marcar tarea como completada o pendiente
+  // Toggle task completion status
   const handleToggleStatus = async (id: number, currentStatus: boolean) => {
-    setLoading(true);
+    // Optimistic update
+    setTasks(prevTasks => 
+      prevTasks.map(task => 
+        task.id === id ? { ...task, is_completed: !currentStatus } : task
+      )
+    );
+    
     try {
       const success = await updateTaskStatus(id, !currentStatus);
-      if (success) {
-        // Recargar todas las tareas después de actualizar
-        await new Promise(resolve => setTimeout(resolve, 300)); // Pequeña pausa
-        const updatedTasks = await forceTaskRefresh();
-        setTasks(updatedTasks);
-        setError(null);
-      } else {
+      if (!success) {
+        // Revert the optimistic update if the API call failed
+        setTasks(prevTasks => 
+          prevTasks.map(task => 
+            task.id === id ? { ...task, is_completed: currentStatus } : task
+          )
+        );
         setError('Failed to update task status. Please try again.');
       }
     } catch (err) {
       console.error('Error updating task:', err);
+      // Revert the optimistic update
+      setTasks(prevTasks => 
+        prevTasks.map(task => 
+          task.id === id ? { ...task, is_completed: currentStatus } : task
+        )
+      );
       setError('Failed to update task status. Please try again.');
-    } finally {
-      setLoading(false);
     }
   };
 
-  // Eliminar tarea
+  // Delete a task
   const handleDeleteTask = async (id: number) => {
-    setLoading(true);
+    // Optimistic update - remove the task immediately
+    const taskToDelete = tasks.find(task => task.id === id);
+    setTasks(prevTasks => prevTasks.filter(task => task.id !== id));
+    
     try {
       const success = await deleteTask(id);
-      if (success) {
-        // Recargar todas las tareas después de eliminar
-        await new Promise(resolve => setTimeout(resolve, 300)); // Pequeña pausa
-        const updatedTasks = await forceTaskRefresh();
-        setTasks(updatedTasks);
-        setError(null);
-      } else {
+      if (!success && taskToDelete) {
+        // Revert the optimistic delete if the API call failed
+        setTasks(prevTasks => [...prevTasks, taskToDelete]);
         setError('Failed to delete task. Please try again.');
       }
     } catch (err) {
       console.error('Error deleting task:', err);
+      if (taskToDelete) {
+        // Revert the optimistic delete
+        setTasks(prevTasks => [...prevTasks, taskToDelete]);
+      }
       setError('Failed to delete task. Please try again.');
-    } finally {
-      setLoading(false);
     }
   };
 
-  // Asegurarse de que tasks siempre sea un array
-  const safeTasksArray = Array.isArray(tasks) ? tasks : [];
+  // Update task description - New function
+  const handleUpdateTask = async (id: number, newDescription: string) => {
+    // Check if the description has actually changed
+    const task = tasks.find(t => t.id === id);
+    if (!task || task.description === newDescription) {
+      return; // Don't do anything if the description hasn't changed
+    }
 
-  // Filtrar tareas pendientes y completadas
-  const pendingTasks = safeTasksArray.filter(task => !task.is_completed);
-  const completedTasks = safeTasksArray.filter(task => task.is_completed);
+    // Store original description for reverting if needed
+    const originalDescription = task.description;
+
+    // Optimistic update
+    setTasks(prevTasks => 
+      prevTasks.map(task => 
+        task.id === id ? { ...task, description: newDescription } : task
+      )
+    );
+    
+    try {
+      const success = await updateTaskDescription(id, newDescription);
+      if (!success) {
+        // Revert the optimistic update if the API call failed
+        setTasks(prevTasks => 
+          prevTasks.map(task => 
+            task.id === id ? { ...task, description: originalDescription } : task
+          )
+        );
+        setError('Failed to update task description. Please try again.');
+      }
+    } catch (err) {
+      console.error('Error updating task description:', err);
+      // Revert the optimistic update
+      setTasks(prevTasks => 
+        prevTasks.map(task => 
+          task.id === id ? { ...task, description: originalDescription } : task
+        )
+      );
+      setError('Failed to update task description. Please try again.');
+    }
+  };
+
+  // Filter tasks for pending and completed lists
+  const pendingTasks = tasks.filter(task => !task.is_completed);
+  const completedTasks = tasks.filter(task => task.is_completed);
 
   return (
     <div className="todo-app">
       <div className="container">
-        {/* App Header */}
         <Header pendingTasksCount={pendingTasks.length} />
 
-        {/* Error Message */}
         {error && (
           <div className="error-message">
             <p>{error}</p>
@@ -142,12 +192,9 @@ function App() {
           </div>
         )}
 
-        {/* New Task Form */}
         <TaskForm onAddTask={handleAddTask} isLoading={loading} />
 
-        {/* Tasks Container */}
         <div className="tasks-container">
-          {/* Loading Indicator */}
           {loading ? (
             <div className="loading-spinner">
               <div className="spinner"></div>
@@ -155,22 +202,22 @@ function App() {
             </div>
           ) : (
             <>
-              {/* Pending Tasks */}
               <TaskList
                 title="Pending Tasks"
                 tasks={pendingTasks}
                 emptyMessage="No pending tasks!"
                 onToggleStatus={handleToggleStatus}
                 onDelete={handleDeleteTask}
+                onUpdateTask={handleUpdateTask}
               />
               
-              {/* Completed Tasks */}
               <TaskList
                 title="Completed Tasks"
                 tasks={completedTasks}
                 emptyMessage="No completed tasks yet."
                 onToggleStatus={handleToggleStatus}
                 onDelete={handleDeleteTask}
+                onUpdateTask={handleUpdateTask}
               />
             </>
           )}
